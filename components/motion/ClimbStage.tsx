@@ -207,7 +207,8 @@ export default function ClimbStage() {
       // Nothing to draw yet, or the intro is covering the stage: spend nothing on it.
       if (!scene || covered) return;
       // Idle: halve the frame rate. The glints still twinkle, the battery is spared.
-      const idle = now - Math.max(lastScroll, cursor.at) > 2200 && (now - introStart) / 1000 > 2.6;
+      // Only a long rest halves the frame rate; a short pause would read as a hitch on resume.
+      const idle = now - Math.max(lastScroll, cursor.at) > 9000 && (now - introStart) / 1000 > 2.6;
       if (idle && frameSkip++ % 2 === 1) return;
       const intro = still ? 1 : Math.min(1, Math.max(0, now - introStart) / 2400);
       const e = 1 - Math.pow(1 - intro, 4);

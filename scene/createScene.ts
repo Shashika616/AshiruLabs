@@ -147,13 +147,14 @@ const GLASS_FRAG = /* glsl */ `
 
     // The ink line: a hard edge, antialiased by one pixel.
     float aa = fwidth(d);
-    float line = 1.0 - smoothstep(0.0055, 0.0055 + aa * 1.5, d);
+    float w = max(0.0055, aa * 1.1);
+    float line = (1.0 - smoothstep(w, w + aa * 1.5, d)) * min(1.0, 0.0055 / w + 0.35);
     // Flat cel fills: steel-blue tops catch the light, slate sides hold the shade.
     vec3 tone = uColor * top * 0.42 + uSide * side * 0.36 + uSide * bottom * 0.12;
     // Two hard diagonal streaks of reflected light across each top.
     vec2 uv = q / max(h, vec2(1e-3));
     float g = uv.x * 0.8 + uv.y * 0.6;
-    float ga = fwidth(g);
+    float ga = max(fwidth(g), 1e-4);
     float streak = (smoothstep(-0.05 - ga, -0.05, g) - smoothstep(0.2, 0.2 + ga, g)) * 0.42
                  + (smoothstep(0.32 - ga, 0.32, g) - smoothstep(0.4, 0.4 + ga, g)) * 0.3;
     streak *= top;
@@ -360,7 +361,9 @@ export type SceneHooks = { onProgress?: (p: number) => void; onReady?: () => voi
 export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: ModelUrls, hooks: SceneHooks = {}): SceneHandle {
   const renderer = new WebGLRenderer({
     canvas,
-    antialias: tier === "high",
+    // MSAA everywhere: the ink outline and the glass lines are all edges. On phones' tiled
+    // GPUs it costs next to nothing.
+    antialias: true,
     alpha: false,
     powerPreference: "high-performance",
     stencil: false,
@@ -368,7 +371,8 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
   renderer.setClearColor(BG, 1);
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
-  const maxDpr = tier === "high" ? 1.75 : 1.4;
+  // Sharp on modern screens; the adaptive step-down below still protects slow devices.
+  const maxDpr = tier === "high" ? 2 : 1.6;
   let dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
   renderer.setPixelRatio(dpr);
 
@@ -437,7 +441,7 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
     noses.setMatrixAt(i * 2, m);
     m.compose(new Vector3(nx, b.cy - b.sy / 2, b.cz), q, new Vector3(0.006, 0.006, b.sz));
     noses.setMatrixAt(i * 2 + 1, m);
-    m.compose(new Vector3(b.cx, b.cy - b.sy / 2 - 0.02, b.cz), q, new Vector3(b.sx * 1.9, 1, b.sz * 1.35));
+    m.compose(new Vector3(b.cx, b.cy - b.sy / 2 - 0.02, b.cz), q, new Vector3(b.sx * 1.4, 1, b.sz * 1.15));
     under.setMatrixAt(i, m);
     if (rand() < (b.tread ? 0.38 : 1)) {
       const side = rand() < 0.5 ? -1 : 1;
@@ -602,7 +606,7 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
       if (disposed) return c.dispose();
       climber = c;
       figure.add(c.object);
-      hooks.onReady?.();
+      warm().finally(() => hooks.onReady?.());
     })
     .catch(() => hooks.onReady?.());
   const halo = new Sprite(
@@ -655,6 +659,16 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
     const t = headAt.sub(camera.position).dot(camFwd) / denom;
     return gaze.copy(camera.position).addScaledVector(ray, t).lerp(camera.position, 0.35);
   }
+
+  /* Compile every shader in the background and draw one hidden frame, so nothing compiles or
+     uploads on the first visible frame (that used to hitch exactly as the site opened). */
+  function warm() {
+    const done = () => {
+      if (!disposed) renderer.render(scene, camera);
+    };
+    return renderer.compileAsync(scene, camera).then(done, done);
+  }
+  warm();
 
   function frame(f: FrameInput) {
     const p = pose(f.u);

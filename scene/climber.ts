@@ -107,6 +107,8 @@ export async function loadClimber(
   onProgress?: (p: number) => void,
 ): Promise<Climber> {
   const loader = new GLTFLoader();
+  // Decode the compressed meshes on worker threads, so the intro never drops a frame.
+  MeshoptDecoder.useWorkers?.(2);
   loader.setMeshoptDecoder(MeshoptDecoder);
   // Real download progress across both files; sizes are estimates until the server says.
   const loaded = [0, 0];
@@ -133,7 +135,10 @@ export async function loadClimber(
   let skin: MeshToonMaterial["map"] = null;
   model.traverse((o) => {
     const mat = (o as Mesh).material as MeshToonMaterial | undefined;
-    if (mat?.map && !skin) skin = mat.map;
+    if (mat?.map && !skin) {
+      skin = mat.map;
+      skin.anisotropy = 8;
+    }
   });
   // Tone mapping would grey the cel colours; the lights are balanced for it to be off.
   const body = new MeshToonMaterial({
@@ -154,7 +159,16 @@ export async function loadClimber(
       totalEmissiveRadiance += vec3(0.28, 0.32, 0.38) * rimF;`,
     );
   };
-  const ink = new MeshBasicMaterial({ color: 0x0d1b2a, side: BackSide, toneMapped: false, transparent: true, opacity: 0 });
+  const ink = new MeshBasicMaterial({
+    color: 0x0d1b2a,
+    side: BackSide,
+    toneMapped: false,
+    transparent: true,
+    opacity: 0,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 2,
+  });
   const meshes: SkinnedMesh[] = [];
   model.traverse((o) => {
     const m = o as SkinnedMesh;
@@ -259,7 +273,7 @@ export async function loadClimber(
         const parentW = world.get(b.parent!) ?? staticParent.get(b)!;
         const src = srcOf.get(b);
         const w = src
-          ? src.getWorldQuaternion(d).multiply(restSrcInv.get(b)!).clone().multiply(restTgt.get(b)!)
+          ? (src.matrixWorld.decompose(scratchP, d, scratchS), d).multiply(restSrcInv.get(b)!).clone().multiply(restTgt.get(b)!)
           : parentW.clone().multiply(restTgt.get(b.parent!)!.clone().invert().multiply(restTgt.get(b)!));
         world.set(b, w);
         local.copy(parentW).invert().multiply(w);
@@ -288,8 +302,12 @@ export async function loadClimber(
     ];
     return new AnimationClip(c.name, c.duration, tracks);
   };
+  const breathe = () => new Promise((r) => setTimeout(r, 0));
+  await breathe();
   const walkClip = bake(clip("walk"));
+  await breathe();
   const runClip = bake(clip("run"));
+  await breathe();
   const idleClip = bake(clip("idle"));
 
   /* turn a joint by a rotation given in world space, whatever the rig's local axes are */
@@ -363,7 +381,9 @@ export async function loadClimber(
       return out;
     });
   };
+  await breathe();
   const walkSwing = swing(walkClip);
+  await breathe();
   const runSwing = swing(runClip);
   // Align the run to the walk so cross-fading between them never swaps feet mid-stride.
   let runShift = 0;
@@ -648,13 +668,13 @@ export async function loadClimber(
   const footDy = [0, 0];
   const swingW = [0, 0];
   let pelvis = 0;
-  const ik = { h: new Vector3(), k: new Vector3(), a: new Vector3(), t: new Vector3(), u: new Vector3(), v: new Vector3(), n: new Vector3() };
+  const ik = { h: new Vector3(), k: new Vector3(), a: new Vector3(), t: new Vector3(), u: new Vector3(), v: new Vector3() };
   const footQ = new Quaternion();
   const swingQ = new Quaternion();
 
   /** Two-bone IK: move leg s's ankle up (or down) by `need`, keeping the knee in its own plane and the foot's attitude. */
   function reach(s: number, need: number) {
-    const { h, k, a, t, u, v, n } = ik;
+    const { h, k, a, t, u, v } = ik;
     thigh[s].getWorldPosition(h);
     knee[s].getWorldPosition(k);
     foot[s].getWorldPosition(a);
@@ -667,11 +687,9 @@ export async function loadClimber(
     v.subVectors(a, k);
     const now = u.angleTo(v);
     const goal = Math.acos(MathUtils.clamp((la * la + lb * lb - lc * lc) / (2 * la * lb), -1, 1));
-    n.crossVectors(u, v);
-    if (n.lengthSq() < 1e-8) n.copy(lateral);
-    n.normalize();
-    // Open or close the knee to the length the hip-to-target distance needs...
-    turnWorld(knee[s], swingQ.setFromAxisAngle(n, goal - now));
+    // Open or close the knee to the length the hip-to-target distance needs, about the body's
+    // own hinge axis (stable even with the leg straight, where the leg's plane is undefined)...
+    turnWorld(knee[s], swingQ.setFromAxisAngle(lateral, -kneeSign * (goal - now)));
     // ...then swing the whole leg from the hip so the ankle lands on the target.
     foot[s].getWorldPosition(a);
     turnWorld(thigh[s], swingQ.setFromUnitVectors(u.subVectors(a, h).normalize(), v.subVectors(t, h).normalize()));
@@ -739,7 +757,8 @@ export async function loadClimber(
     pelvis += (wantPelvis - pelvis) * (1 - Math.exp(-f.dt * (f.still ? 60 : 10)));
     model.position.y = restY + pelvis;
     const under = surface(base.x, base.z, base.y + 0.3);
-    shadow.position.y = (under === null ? 0 : under - base.y) + 0.004;
+    const shadowY = (under === null ? 0 : under - base.y) + 0.004;
+    shadow.position.y += (shadowY - shadow.position.y) * (1 - Math.exp(-f.dt * 14));
     for (let s = 0; s < 2; s++) {
       const need = footDy[s] - pelvis;
       if (Math.abs(need) > 0.002) reach(s, need);
