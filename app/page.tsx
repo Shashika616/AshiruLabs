@@ -3,10 +3,11 @@ import StageSkeleton from "@/components/motion/StageSkeleton";
 import Intro from "@/components/intro/Intro";
 import Reveal from "@/components/motion/Reveal";
 import SmoothScroll from "@/components/motion/SmoothScroll";
+import Cursor from "@/components/ui/Cursor";
+import Footer from "@/components/ui/Footer";
 import Header from "@/components/ui/Header";
-import LocalClock from "@/components/ui/LocalClock";
-import { Mark, TieHereMark } from "@/components/ui/Marks";
-import { DISCIPLINES, NAV, PROCESS, SERVICES, SITE, STATION_NAMES, TIEHERE } from "@/content/site";
+import { TieHereMark } from "@/components/ui/Marks";
+import { DISCIPLINES, PROCESS, SERVICES, SITE, STATION_NAMES, TIEHERE } from "@/content/site";
 
 function Arrow({ diagonal = false }: { diagonal?: boolean }) {
   return (
@@ -54,8 +55,9 @@ export default function Home() {
               </span>
             </h1>
             <p className="lede hero-lede">
-              AshiruLabs is a software product company in {SITE.country}. We build and run our own products, and we
-              build yours the same way: one measured step at a time, from first commit to the version people rely on.
+              AshiruLabs is a software product company in {SITE.country}. We build and run our own products, and{" "}
+              <strong className="hl">we build yours the same way</strong>: one measured step at a time, from first
+              commit to the version people rely on.
             </p>
             <div className="ctas hero-ctas">
               <a href="#contact" className="btn btn-solid">
@@ -76,10 +78,6 @@ export default function Home() {
               </span>
               <Arrow />
             </a>
-            <div className="scroll-cue" aria-hidden="true">
-              <span className="scroll-cue-line" />
-              Scroll to climb
-            </div>
           </div>
         </section>
 
@@ -150,7 +148,7 @@ export default function Home() {
                 Visit TieHere
                 <Arrow diagonal />
               </a>
-              <p>Designed, built and operated by AshiruLabs.</p>
+              <p>A product of AshiruLabs.</p>
             </div>
           </div>
         </section>
@@ -165,8 +163,8 @@ export default function Home() {
               built like it&rsquo;s ours.
             </h2>
             <p className="lede" data-reveal style={{ ["--d" as string]: 1 }}>
-              The team that ships and maintains TieHere is the team that builds for you. No hand-off to a second
-              bench, no prototype left for someone else to finish.
+              AshiruLabs builds client software with <strong className="hl">the same product discipline</strong> behind
+              its own products. No hand-off to a second bench, no prototype left for someone else to finish.
             </p>
             <ul className="services">
               {SERVICES.map((s, i) => (
@@ -198,7 +196,7 @@ export default function Home() {
               How a build climbs.
             </h2>
             <p className="lede" data-reveal style={{ ["--d" as string]: 1 }}>
-              Five steps, read from the bottom up. Each one is finished before the next is taken.
+              Five steps, read from the bottom up. Each one is <strong className="hl">finished before the next is taken</strong>.
             </p>
             <ol className="process">
               {PROCESS.map((p, i) => (
@@ -224,7 +222,7 @@ export default function Home() {
               the next step<span className="accent">.</span>
             </h2>
             <p className="lede" data-reveal style={{ ["--d" as string]: 1 }}>
-              Tell us where it stands today and where it needs to go. We will reply with an honest first step.
+              Tell us where it stands today and where it needs to go. We will reply with <strong className="hl">an honest first step</strong>.
             </p>
             <div className="ctas" data-reveal style={{ ["--d" as string]: 2 }}>
               <a href={mail} className="btn btn-solid">
@@ -237,34 +235,13 @@ export default function Home() {
             </div>
           </div>
         </section>
+        {/* A screen of travel after the summit: it stays pinned while the footer rises over it. */}
+        <div className="summit-travel" aria-hidden="true" />
       </main>
 
-      <footer className="footer">
-        <div className="footer-brand">
-          <Mark size={22} />
-          <span className="brand-word">
-            Ashiru<span>Labs</span>
-          </span>
-        </div>
-        <p className="footer-line">Software products, built in {SITE.country}.</p>
-        <nav className="footer-nav" aria-label="Footer">
-          {NAV.map((n) => (
-            <a key={n.href} href={n.href}>
-              {n.label}
-            </a>
-          ))}
-          <a href={TIEHERE.url} target="_blank" rel="noopener">
-            TieHere
-          </a>
-        </nav>
-        <p className="footer-meta">
-          <span>
-            {SITE.country} <LocalClock timeZone={SITE.timeZone} /> UTC+05:30
-          </span>
-          <span>&copy; {new Date().getFullYear()} AshiruLabs</span>
-        </p>
-      </footer>
+      <Footer />
 
+      <Cursor />
       <SmoothScroll />
       <Reveal />
     </>

@@ -10,8 +10,8 @@ export const SITE = {
   name: "AshiruLabs",
   /** PLACEHOLDER: the production domain. Used for canonical URLs and the sitemap. */
   url: "https://ashirulabs.com",
-  /** PLACEHOLDER: the address the contact buttons open. */
-  email: "hello@ashirulabs.com",
+  /** The address every contact button and link opens. */
+  email: "info@ashirulabs.com",
   country: "Sri Lanka",
   timeZone: "Asia/Colombo",
   description:
@@ -37,7 +37,7 @@ export const DISCIPLINES = [
   {
     title: "Your product",
     body: "We design and build software for founders and companies, from the first commit to the version people rely on every day, and we stay for what comes after launch.",
-    detail: "Same team, same standard.",
+    detail: "The same standard, end to end.",
   },
 ];
 

@@ -174,17 +174,34 @@ svg {
   max-width: 34rem;
   text-wrap: pretty;
 }
+/* The phrase each paragraph turns on: full white, marked with a soft steel highlighter. */
+.hl {
+  color: var(--mist);
+  font-weight: 500;
+  background: linear-gradient(transparent 62%, rgba(119, 141, 169, 0.38) 62%, rgba(119, 141, 169, 0.38) 92%, transparent 92%);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  padding-inline: 0.08em;
+}
+@media (min-width: 900px) {
+  .lede {
+    color: rgba(237, 242, 244, 0.9);
+    font-size: clamp(1.25rem, 1.5vw, 1.45rem);
+    line-height: 1.5;
+    max-width: 38rem;
+    text-shadow: 0 1px 18px rgba(13, 27, 42, 0.95);
+  }
+}
 
 .readout,
-.gauge,
 .gauge-mobile,
 .gap-mark,
 .rung-level,
 .process-n,
 .tags,
 .shipping-label,
-.scroll-cue,
-.footer-meta {
+.foot-label,
+.foot-base {
   font-family: var(--font-mono);
   font-variation-settings: "wdth" 87.5;
   font-size: 0.6875rem;
@@ -302,7 +319,12 @@ svg {
 
 .stage {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  /* The large viewport: a phone's address bar moving never resizes the canvas. */
+  height: 100vh;
+  height: 100lvh;
   z-index: 0;
   pointer-events: none;
   background:
@@ -361,93 +383,19 @@ svg {
   transform: scaleY(0.02);
 }
 
-/* right altitude gauge */
-.gauge {
-  position: fixed;
-  right: 1.25rem;
-  top: 50%;
-  z-index: 3;
-  width: 5.5rem;
-  transform: translateY(-50%);
-  display: grid;
-  gap: 0.9rem;
-  color: var(--fg-2);
-  pointer-events: none;
-}
-.gauge-read {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: baseline;
-  row-gap: 0.2rem;
-}
-.gauge-label {
-  grid-column: 1 / -1;
-  color: var(--fg-3);
-}
-.gauge-value {
-  color: var(--signal);
-  font-size: 0.875rem;
-  letter-spacing: 0;
-}
-.gauge-unit {
-  margin-left: 0.2rem;
-  color: var(--fg-3);
-  font-size: 0.6875rem;
-}
-.gauge-trend {
-  color: var(--accent);
-}
-.gauge-trend svg {
-  width: 9px;
-  height: 9px;
-  fill: currentColor;
-  transition:
-    transform 0.4s var(--ease-out),
-    opacity 0.4s var(--ease-out);
-}
-.gauge-trend[data-trend="hold"] svg {
-  opacity: 0.25;
-}
-.gauge-trend[data-trend="down"] svg {
-  transform: rotate(180deg);
-}
-.gauge-scale {
-  position: relative;
-  height: 32vh;
-  margin-left: auto;
-  width: 1.4rem;
-  background:
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.35) 0 1px, transparent 1px 8px) right / 6px 100% no-repeat,
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.55) 0 1px, transparent 1px 40px) right / 14px 100% no-repeat;
-}
-.gauge-needle {
-  position: absolute;
-  inset: 0;
-  will-change: transform;
-}
-.gauge-needle::after {
-  content: "";
-  position: absolute;
-  left: -0.7rem;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  background: var(--signal);
-  box-shadow: 0 0 12px var(--signal-glow);
-}
-.gauge-station {
-  display: grid;
-  gap: 0.15rem;
-  text-align: right;
-}
-.gauge-station span {
-  color: var(--accent);
-}
 .gauge-mobile {
   display: none;
 }
 
-/* ------------------------------------------------------------------ header */
+/* ------------------------------------------------------------------ header
+   A floating glass instrument bar. The capsule is the header's ::before, never the header
+   itself: a backdrop-filter or transform on the header would make it the containing block of
+   the fixed mobile menu, and the menu would be laid out inside the bar. */
+
+:root {
+  --bar-x: max(12px, calc(var(--gutter) - 1.25rem));
+  --bar-top: 14px;
+}
 
 .header {
   position: fixed;
@@ -457,17 +405,51 @@ svg {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 1rem;
-  padding: 1.1rem var(--gutter);
-  /* Backwards only: an animation that keeps filling its end state makes the header a
-     containing block, and the fixed mobile menu would be laid out inside the header bar. */
+  padding: calc(var(--bar-top) + 9px) calc(var(--bar-x) + 14px) 9px calc(var(--bar-x) + 18px);
+  /* Backwards only: a filling animation would also make the header a containing block. */
   animation: header-in 1.2s var(--ease-out) 0.2s backwards;
 }
 .header::before {
   content: "";
   position: absolute;
-  inset: 0;
+  left: var(--bar-x);
+  right: var(--bar-x);
+  top: var(--bar-top);
+  bottom: 0;
   z-index: -1;
-  background: linear-gradient(180deg, rgba(13, 27, 42, 0.94) 55%, rgba(13, 27, 42, 0));
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(27, 38, 59, 0.66), rgba(13, 27, 42, 0.5));
+  border: 1px solid rgba(119, 141, 169, 0.26);
+  box-shadow:
+    0 0 0 1px #081120,
+    inset 0 1px 0 rgba(237, 242, 244, 0.1),
+    0 18px 40px -24px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  pointer-events: none;
+  transition:
+    background 0.5s var(--ease-out),
+    box-shadow 0.5s var(--ease-out);
+}
+/* Once the page moves, the glass thickens so the bar holds against busier ground. */
+.header[data-compact]::before {
+  background: linear-gradient(180deg, rgba(27, 38, 59, 0.86), rgba(13, 27, 42, 0.78));
+  box-shadow:
+    0 0 0 1px #081120,
+    inset 0 1px 0 rgba(237, 242, 244, 0.12),
+    0 22px 48px -20px rgba(0, 0, 0, 0.85);
+}
+/* Climb progress, filling along the bar's lower edge. */
+.header-progress {
+  position: absolute;
+  left: calc(var(--bar-x) + 16px);
+  right: calc(var(--bar-x) + 16px);
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--slate), var(--steel) 70%, var(--mist));
+  box-shadow: 0 0 8px rgba(119, 141, 169, 0.7);
+  transform: scaleX(var(--progress, 0));
+  transform-origin: left;
   pointer-events: none;
 }
 @keyframes header-in {
@@ -481,6 +463,9 @@ svg {
   align-items: center;
   gap: 0.65rem;
   justify-self: start;
+}
+.brand .mark-climber {
+  filter: drop-shadow(0 0 3px rgba(119, 141, 169, 0.9));
 }
 .brand-word {
   font-family: var(--font-display);
@@ -498,56 +483,73 @@ svg {
   font-weight: 400;
   color: var(--fg-2);
 }
+
+/* The links ride a track; a lit pill glides to the current section, a faint one follows hover. */
 .nav {
+  position: relative;
   display: flex;
-  gap: 2.25rem;
+  gap: 0.15rem;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(8, 17, 32, 0.45);
+  border: 1px solid rgba(119, 141, 169, 0.16);
   font-size: 0.875rem;
 }
 .nav a {
   position: relative;
-  display: inline-block;
+  z-index: 1;
+  padding: 0.5rem 1.05rem;
+  border-radius: 999px;
   color: var(--fg-2);
-  padding-block: 0.4rem;
-  transition:
-    color 0.3s var(--ease-out),
-    transform 0.45s var(--ease-out);
+  transition: color 0.3s var(--ease-out);
 }
-/* The section on screen: brighter, a touch larger, underlined in the accent. */
+.nav a:hover,
 .nav a[aria-current="true"] {
   color: var(--fg);
-  transform: scale(1.08);
 }
-.nav a[aria-current="true"]::after {
-  transform: scaleX(1);
-  transform-origin: left;
-  height: 2px;
-}
-.nav a::after {
-  content: "";
+.nav-pill,
+.nav-hover {
   position: absolute;
+  top: 4px;
+  bottom: 4px;
   left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  background: var(--accent);
-  transform: scaleX(0);
-  transform-origin: right;
-  transition: transform 0.5s var(--ease-out);
+  width: var(--pw, 0px);
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(var(--px, 0px));
+  transition:
+    transform 0.55s cubic-bezier(0.3, 1.25, 0.4, 1),
+    width 0.55s cubic-bezier(0.3, 1.25, 0.4, 1),
+    opacity 0.35s var(--ease-out);
 }
-.nav a:hover {
-  color: var(--fg);
+.nav-pill {
+  background: linear-gradient(180deg, rgba(119, 141, 169, 0.34), rgba(65, 90, 119, 0.3));
+  border: 1px solid rgba(160, 180, 205, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(237, 242, 244, 0.22),
+    0 0 18px rgba(119, 141, 169, 0.32);
 }
-.nav a:hover::after {
-  transform: scaleX(1);
-  transform-origin: left;
+.nav[data-active] .nav-pill {
+  opacity: 1;
 }
+.nav-hover {
+  width: var(--hw, 0px);
+  transform: translateX(var(--hx, 0px));
+  background: rgba(119, 141, 169, 0.12);
+  transition-duration: 0.35s;
+}
+.nav[data-hover] .nav-hover {
+  opacity: 1;
+}
+
 .header-cta {
   justify-self: end;
 }
 .header-cta[aria-current="true"] {
-  background: var(--signal);
-  color: var(--ink);
-  border-color: var(--signal);
+  box-shadow:
+    0 0 0 1px rgba(237, 242, 244, 0.5),
+    0 0 24px rgba(119, 141, 169, 0.55);
 }
 .menu-toggle {
   display: none;
@@ -579,7 +581,7 @@ svg {
 /* ------------------------------------------------------------------ layout */
 
 main,
-.footer {
+.foot {
   position: relative;
   z-index: 2;
 }
@@ -672,36 +674,6 @@ main,
   transform: translateX(3px);
   color: var(--fg);
 }
-.scroll-cue {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  color: var(--fg-3);
-  margin-right: 6.5rem;
-}
-.scroll-cue-line {
-  position: relative;
-  width: 1px;
-  height: 2.75rem;
-  background: rgba(255, 255, 255, 0.15);
-  overflow: hidden;
-}
-.scroll-cue-line::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--accent);
-  animation: cue 2.4s var(--ease-io) infinite;
-}
-@keyframes cue {
-  0% {
-    transform: translateY(-100%);
-  }
-  60%,
-  100% {
-    transform: translateY(100%);
-  }
-}
 
 /* the climb between sections */
 .gap {
@@ -749,6 +721,9 @@ main,
   inset: -10% 22% -10% -30vw;
   z-index: -1;
   background: linear-gradient(90deg, rgba(13, 27, 42, 0.95) 68%, rgba(13, 27, 42, 0));
+  /* Feathered top and bottom: a hard edge here sliced through the stairs and the summit door. */
+  mask-image: linear-gradient(180deg, transparent, #000 16%, #000 84%, transparent);
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 16%, #000 84%, transparent);
   pointer-events: none;
 }
 .station-right {
@@ -807,11 +782,37 @@ main,
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+/* TieHere's seven intents, in TieHere's own colours: tinted glass chips with a blue-to-green
+   edge; the hover glow alternates the brand blue and green. */
 .th-intents li {
-  padding: 0.35rem 0.75rem;
-  border: 1px solid var(--line);
+  --glow: rgba(0, 117, 246, 0.55);
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
   font-size: 0.875rem;
-  color: var(--fg-2);
+  font-weight: 500;
+  color: var(--mist);
+  background:
+    linear-gradient(var(--bg-2), var(--bg-2)) padding-box,
+    linear-gradient(120deg, rgba(0, 117, 246, 0.7), rgba(52, 194, 76, 0.6)) border-box;
+  border: 1px solid transparent;
+  box-shadow:
+    inset 0 0 0 100px rgba(0, 117, 246, 0.08),
+    inset 0 1px 0 rgba(237, 242, 244, 0.08);
+  transition:
+    transform 0.35s var(--ease-out),
+    box-shadow 0.35s var(--ease-out);
+}
+.th-intents li:nth-child(even) {
+  --glow: rgba(52, 194, 76, 0.55);
+}
+.th-intents li:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 0 0 100px rgba(0, 117, 246, 0.16),
+    inset 0 1px 0 rgba(237, 242, 244, 0.14),
+    0 8px 20px -10px var(--glow);
 }
 .ladder {
   display: grid;
@@ -951,9 +952,12 @@ main,
 }
 
 /* summit */
+/* The summit pins while the footer rises over it (see .summit-travel and .foot). */
 .summit {
-  position: relative;
-  min-height: 105vh;
+  position: sticky;
+  top: 0;
+  min-height: 100vh;
+  min-height: 100svh;
   display: grid;
   align-items: start;
   justify-items: center;
@@ -982,49 +986,6 @@ main,
 .summit .ctas {
   justify-content: center;
   margin-top: 0.5rem;
-}
-
-/* footer */
-.footer {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 1.25rem 2.5rem;
-  padding: 2rem var(--gutter) 2.25rem;
-  border-top: 1px solid var(--line);
-  background: var(--bg);
-}
-.footer-brand {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-}
-.footer-line {
-  color: var(--fg-3);
-  font-size: 0.875rem;
-}
-.footer-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1.6rem;
-  font-size: 0.875rem;
-  color: var(--fg-2);
-}
-.footer-nav a:hover {
-  color: var(--fg);
-}
-.footer-meta {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  color: var(--fg-3);
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--line);
-}
-.footer-meta time {
-  color: var(--fg);
-  margin-inline: 0.4rem;
 }
 
 /* ------------------------------------------------------------------ reveals
@@ -1059,11 +1020,8 @@ main,
 /* ------------------------------------------------------------------ tablet */
 
 @media (max-width: 1100px) {
-  .nav {
-    gap: 1.5rem;
-  }
-  .gauge {
-    width: 4.75rem;
+  .nav a {
+    padding-inline: 0.8rem;
   }
   .ledger-row,
   .service {
@@ -1089,11 +1047,14 @@ main,
   }
   .header {
     grid-template-columns: 1fr auto;
-    padding-block: 0.85rem;
+    padding: calc(var(--bar-top) + 9px) calc(var(--bar-x) + 9px) 9px calc(var(--bar-x) + 14px);
+  }
+  .menu-toggle {
+    border-radius: 12px;
+    background: rgba(8, 17, 32, 0.45);
   }
   .nav,
   .header-cta,
-  .gauge,
   .rail {
     display: none;
   }
@@ -1151,16 +1112,23 @@ main,
     overflow: hidden;
   }
 
-  .header::before {
-    background: rgba(13, 27, 42, 0.94);
-    border-bottom: 1px solid var(--line);
+  :root {
+    --bar-x: 10px;
+    --bar-top: 10px;
+  }
+  .header::before,
+  .header[data-compact]::before {
+    background: linear-gradient(180deg, rgba(27, 38, 59, 0.94), rgba(13, 27, 42, 0.92));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
   .gauge-mobile {
     display: block;
     position: fixed;
-    top: 1.45rem;
-    right: calc(var(--gutter) + 3.6rem);
+    top: calc(var(--bar-top) + 9px + (2.75rem - 1.7rem) / 2);
+    right: calc(var(--bar-x) + 14px + 2.75rem + 0.6rem);
     z-index: 21;
+    border-radius: 999px;
     padding: 0.35rem 0.6rem;
     color: var(--fg-2);
     background: rgba(13, 27, 42, 0.7);
@@ -1186,9 +1154,6 @@ main,
   }
   .hero-foot {
     margin-top: 2rem;
-  }
-  .scroll-cue {
-    display: none;
   }
   .shipping {
     width: 100%;
@@ -1271,12 +1236,6 @@ main,
     align-items: center;
   }
 
-  .footer {
-    grid-template-columns: 1fr;
-  }
-  .footer-meta {
-    flex-direction: column;
-  }
 }
 
 /* ------------------------------------------------------------------ motion */
@@ -1336,14 +1295,21 @@ html.intro-active .intro,
   background-size: 64px 64px;
   mask-image: radial-gradient(90% 80% at 50% 45%, #000 20%, transparent 80%);
 }
+/* Soft pools of light, drawn as gradients rather than blurred shapes: same look, no filter. */
 .intro-pool {
   position: absolute;
   border-radius: 50%;
-  filter: blur(70px);
   opacity: 0.55;
-  animation: pool-drift 14s ease-in-out infinite alternate;
+  background: radial-gradient(closest-side, var(--pool), transparent) !important;
+  will-change: transform;
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .intro-pool {
+    animation: pool-drift 14s ease-in-out infinite alternate;
+  }
 }
 .intro-pool-a {
+  --pool: #415a77;
   width: 46vmax;
   height: 30vmax;
   left: 8%;
@@ -1351,6 +1317,7 @@ html.intro-active .intro,
   background: #415a77;
 }
 .intro-pool-b {
+  --pool: #778da9;
   width: 34vmax;
   height: 26vmax;
   right: 6%;
@@ -1360,6 +1327,7 @@ html.intro-active .intro,
   animation-delay: -5s;
 }
 .intro-pool-c {
+  --pool: #1b263b;
   width: 30vmax;
   height: 18vmax;
   left: 38%;
@@ -2106,6 +2074,8 @@ html.intro-active .intro,
    step and bounces down the stair while the wordmark loads beside it, then the splash lifts
    like a curtain and the keyboard builds in. */
 
+/* Every splash beat starts 0.3s in, once the page has finished starting up: the stroke
+   drawing runs on the main thread, and would otherwise stutter through hydration. */
 .splash {
   position: absolute;
   inset: 0;
@@ -2142,7 +2112,7 @@ html.intro-active .intro,
   stroke-width: 2.4;
   stroke-dasharray: 62;
   stroke-dashoffset: 62;
-  animation: splash-draw 0.75s cubic-bezier(0.55, 0, 0.3, 1) 0.1s forwards;
+  animation: splash-draw 0.75s cubic-bezier(0.55, 0, 0.3, 1) 0.4s forwards;
 }
 @keyframes splash-draw {
   to {
@@ -2155,7 +2125,7 @@ html.intro-active .intro,
   transform-box: fill-box;
   transform-origin: 50% 100%;
   opacity: 0;
-  animation: splash-bounce 1.2s linear 0.7s forwards;
+  animation: splash-bounce 1.2s linear 1s forwards;
 }
 /* The climber drops onto the top step, then bounces down the stair one tread at a time:
    an arc, a squash on landing, a spring back; a small settle on the last step. Each tread
@@ -2226,7 +2196,7 @@ html.intro-active .intro,
   letter-spacing: -0.03em;
   color: var(--mist);
   clip-path: inset(0 100% 0 0);
-  animation: splash-wipe 0.95s cubic-bezier(0.45, 0, 0.25, 1) 0.92s forwards;
+  animation: splash-wipe 0.95s cubic-bezier(0.45, 0, 0.25, 1) 1.22s forwards;
 }
 .splash-word span {
   font-weight: 400;
@@ -2257,7 +2227,7 @@ html.intro-active .intro,
   box-shadow: 0 0 8px rgba(119, 141, 169, 0.8);
   transform: scaleX(0);
   transform-origin: left;
-  animation: splash-fill 0.95s cubic-bezier(0.45, 0, 0.25, 1) 0.92s forwards;
+  animation: splash-fill 0.95s cubic-bezier(0.45, 0, 0.25, 1) 1.22s forwards;
 }
 @keyframes splash-fill {
   to {
@@ -2296,4 +2266,370 @@ html.intro-active .intro,
     opacity: 0;
     transform: translateY(12px) scale(0.92);
   }
+}
+
+/* ------------------------------------------------------------------ phone performance
+   Live backdrop blur over a full screen is the most expensive thing a phone GPU can be asked to
+   repaint. On phones the glass is a frosted gradient instead, which reads the same over the
+   still navy ground. */
+@media (max-width: 899px), (hover: none) {
+  .intro-screen,
+  .kb-case,
+  .skeleton-loader {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .intro-screen {
+    background: linear-gradient(165deg, rgba(119, 141, 169, 0.24), rgba(27, 38, 59, 0.72));
+  }
+  .kb-case {
+    background: linear-gradient(172deg, rgba(119, 141, 169, 0.34), rgba(27, 38, 59, 0.86) 55%, rgba(13, 27, 42, 0.92));
+  }
+  .intro-char {
+    animation-name: char-in-light;
+  }
+}
+@keyframes char-in-light {
+  from {
+    opacity: 0;
+    transform: translateY(-18%) scale(1.45);
+  }
+}
+
+/* ------------------------------------------------------------------ footer
+   A sheet of frosted glass that rises over the pinned summit. The page reserves a screen of
+   travel after the summit and the footer takes it back as a negative margin, so it slides up
+   over the summit instead of following it, with no scroll handler. */
+
+.summit-travel {
+  height: 100vh;
+  height: 100svh;
+}
+.foot {
+  margin-top: -100vh;
+  margin-top: -100svh;
+  padding: 0 var(--bar-x);
+}
+.foot-sheet {
+  position: relative;
+  min-height: 100svh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: clamp(2.5rem, 6vh, 4.5rem);
+  padding: clamp(3rem, 9vh, 6rem) clamp(1.25rem, 4vw, 3.5rem) 1.75rem;
+  border-radius: 28px 28px 0 0;
+  /* Frosted at the leading edge, where it meets the scene; solid behind the content. */
+  background:
+    radial-gradient(70% 60% at 15% 0%, rgba(119, 141, 169, 0.16), transparent 70%),
+    linear-gradient(180deg, rgba(27, 38, 59, 0.94), rgba(19, 32, 50, 0.99) 3.5rem, #0d1b2a 10rem);
+  border: 1px solid rgba(119, 141, 169, 0.3);
+  border-bottom: 0;
+  box-shadow:
+    0 0 0 1px #081120,
+    inset 0 1px 0 rgba(237, 242, 244, 0.16),
+    0 -40px 90px -30px rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(34px) saturate(150%);
+  -webkit-backdrop-filter: blur(34px) saturate(150%);
+  overflow: hidden;
+}
+/* The glass's own light: the same two hard streaks the stairs and the keyboard carry. */
+.foot-sheet::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(112deg, transparent 6%, rgba(255, 255, 255, 0.05) 7% 13%, transparent 14% 18%, rgba(255, 255, 255, 0.035) 19% 20.5%, transparent 21.5%);
+  pointer-events: none;
+}
+.foot-top {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 2rem;
+}
+.foot-intro {
+  display: grid;
+  gap: 1.4rem;
+}
+.foot-mark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(3rem, 9.5vw, 8.5rem);
+  line-height: 0.9;
+  letter-spacing: -0.045em;
+  color: var(--mist);
+}
+.foot-mark-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+}
+.foot-mark-icon {
+  width: 0.62em;
+  height: 0.62em;
+}
+.foot-mark-labs {
+  font-weight: 300;
+  color: var(--steel);
+}
+.foot-line {
+  color: var(--fg-2);
+  font-size: clamp(1.0625rem, 1.3vw, 1.25rem);
+  max-width: 34rem;
+}
+.foot-ctas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.75rem;
+}
+.foot-mail {
+  color: var(--fg-2);
+  font-family: var(--font-mono);
+  font-variation-settings: "wdth" 87.5;
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-decoration-color: rgba(119, 141, 169, 0.5);
+  text-underline-offset: 0.35em;
+  transition: color 0.3s var(--ease-out);
+}
+.foot-mail:hover {
+  color: var(--fg);
+}
+.foot-place {
+  display: grid;
+  justify-items: end;
+  gap: 0.35rem;
+  text-align: right;
+}
+.foot-clock {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(2.2rem, 4vw, 3.25rem);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--mist);
+  font-variant-numeric: tabular-nums;
+}
+.foot-place-name {
+  color: var(--fg-3);
+  font-size: 0.875rem;
+}
+.foot-label {
+  color: var(--steel);
+}
+.foot-cols {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2rem;
+  align-content: start;
+  padding-top: 2rem;
+  border-top: 1px solid var(--line);
+}
+.foot-col {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+}
+.foot-col ul {
+  display: grid;
+  gap: 0.55rem;
+}
+.foot-link {
+  position: relative;
+  color: var(--fg-2);
+  transition: color 0.3s var(--ease-out);
+}
+.foot-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: var(--steel);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.45s var(--ease-out);
+}
+.foot-link:hover {
+  color: var(--fg);
+}
+.foot-link:hover::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+.foot-muted {
+  color: var(--fg-3);
+}
+.foot-product {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: rgba(8, 17, 32, 0.45);
+  border: 1px solid rgba(119, 141, 169, 0.22);
+  transition:
+    border-color 0.35s var(--ease-out),
+    transform 0.35s var(--ease-out);
+}
+.foot-product:hover {
+  border-color: rgba(160, 180, 205, 0.5);
+  transform: translateY(-2px);
+}
+.foot-product-text {
+  display: grid;
+  gap: 0.2rem;
+  color: var(--fg-3);
+  font-size: 0.875rem;
+}
+.foot-product-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--fg);
+  font-weight: 600;
+  font-size: 1rem;
+}
+.foot-arrow,
+.foot-base svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.foot-base {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  color: var(--fg-3);
+}
+.foot-top-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--fg-2);
+  transition: color 0.3s var(--ease-out);
+}
+.foot-top-link:hover {
+  color: var(--fg);
+}
+.foot-top-link svg {
+  transition: transform 0.4s var(--ease-out);
+}
+.foot-top-link:hover svg {
+  transform: translateY(-3px);
+}
+
+@media (max-width: 899px) {
+  .foot {
+    padding: 0;
+  }
+  .foot-sheet {
+    border-radius: 22px 22px 0 0;
+    gap: 2.25rem;
+    padding-top: 3rem;
+    /* No live blur on phones: a denser frost reads the same. */
+    background: linear-gradient(180deg, rgba(27, 38, 59, 0.97), #13203a 4rem, #0d1b2a 10rem);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .foot-top {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+  .foot-place {
+    justify-items: start;
+    text-align: left;
+  }
+  .foot-cols {
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem 1.25rem;
+  }
+  .foot-cols > :nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .foot-base {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* Without motion the summit simply sits above the footer. */
+@media (prefers-reduced-motion: reduce) {
+  .summit {
+    position: relative;
+  }
+  .summit-travel {
+    display: none;
+  }
+  .foot {
+    margin-top: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ cursor
+   On mouse and trackpad only: a dot that tracks exactly and a steel ring that eases after it,
+   swelling over anything clickable. Touch devices keep their own behaviour. */
+
+html.has-cursor,
+html.has-cursor * {
+  cursor: none !important;
+}
+.cursor-dot,
+.cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 200;
+  pointer-events: none;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.25s var(--ease-out);
+}
+html.has-cursor .cursor-dot,
+html.has-cursor .cursor-ring {
+  opacity: 1;
+}
+html.has-cursor.cursor-out .cursor-dot,
+html.has-cursor.cursor-out .cursor-ring {
+  opacity: 0;
+}
+.cursor-dot {
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  background: var(--mist);
+  box-shadow: 0 0 8px rgba(237, 242, 244, 0.6);
+}
+.cursor-ring {
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+}
+.cursor-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(119, 141, 169, 0.85);
+  box-shadow: 0 0 12px rgba(119, 141, 169, 0.35);
+  transition:
+    transform 0.35s cubic-bezier(0.3, 1.4, 0.4, 1),
+    background-color 0.3s var(--ease-out),
+    border-color 0.3s var(--ease-out);
+}
+.cursor-ring[data-state="link"]::before {
+  transform: scale(1.6);
+  background: rgba(119, 141, 169, 0.16);
+  border-color: rgba(237, 242, 244, 0.7);
+}
+.cursor-ring[data-down]::before {
+  transform: scale(0.75);
+}
+.cursor-ring[data-state="link"][data-down]::before {
+  transform: scale(1.3);
 }

@@ -33,7 +33,7 @@ import {
   DataTexture,
   MeshBasicMaterial,
   MeshToonMaterial,
-  NearestFilter,
+  LinearFilter,
   RedFormat,
   PlaneGeometry,
   SkinnedMesh,
@@ -128,8 +128,18 @@ export async function loadClimber(
   // palette and a fair skin tone) lit in three hard bands, the shadow band cooled by the sky
   // light, with a crisp rim of light and a fine ink outline drawn as a back-faced shell pushed
   // out along the skinned normals.
-  const gradient = new DataTexture(new Uint8Array([188, 230, 255]), 3, 1, RedFormat);
-  gradient.minFilter = gradient.magFilter = NearestFilter;
+  // Three cel bands with a narrow soft step between them: a hard 1-texel step made faces near
+  // a band edge flip between light and shadow from frame to frame as she moved.
+  const RAMP = 32;
+  const ramp = new Uint8Array(RAMP);
+  for (let i = 0; i < RAMP; i++) {
+    const x = (i + 0.5) / RAMP;
+    const s1 = Math.min(1, Math.max(0, (x - 0.31) / 0.05));
+    const s2 = Math.min(1, Math.max(0, (x - 0.64) / 0.05));
+    ramp[i] = Math.round(188 + (230 - 188) * s1 + (255 - 230) * s2);
+  }
+  const gradient = new DataTexture(ramp, RAMP, 1, RedFormat);
+  gradient.minFilter = gradient.magFilter = LinearFilter;
   gradient.generateMipmaps = false;
   gradient.needsUpdate = true;
   let skin: MeshToonMaterial["map"] = null;
@@ -155,7 +165,7 @@ export async function loadClimber(
     shader.fragmentShader = shader.fragmentShader.replace(
       "#include <emissivemap_fragment>",
       `#include <emissivemap_fragment>
-      float rimF = smoothstep(0.6, 0.64, 1.0 - abs(dot(normal, normalize(vViewPosition))));
+      float rimF = smoothstep(0.56, 0.7, 1.0 - abs(dot(normal, normalize(vViewPosition))));
       totalEmissiveRadiance += vec3(0.28, 0.32, 0.38) * rimF;`,
     );
   };
@@ -253,7 +263,7 @@ export async function loadClimber(
   const srcHipsRest = srcHips.getWorldPosition(new Vector3());
   const ratio = hipsBindW.y / srcHipsRest.y;
 
-  const bake = (c: AnimationClip) => {
+  const bake = async (c: AnimationClip) => {
     const mx = new AnimationMixer(motion.scene);
     mx.clipAction(c).play();
     const frames = Math.max(2, Math.round(c.duration * 30) + 1);
@@ -264,7 +274,13 @@ export async function loadClimber(
     const d = new Quaternion();
     const local = new Quaternion();
     const hp = new Vector3();
+    let slice = performance.now();
     for (let f = 0; f < frames; f++) {
+      // Hand the thread back every few milliseconds, so loading never costs a frame.
+      if (performance.now() - slice > 6) {
+        await breathe();
+        slice = performance.now();
+      }
       const t = (f / (frames - 1)) * c.duration;
       times[f] = t;
       mx.setTime(t);
@@ -304,11 +320,11 @@ export async function loadClimber(
   };
   const breathe = () => new Promise((r) => setTimeout(r, 0));
   await breathe();
-  const walkClip = bake(clip("walk"));
+  const walkClip = await bake(clip("walk"));
   await breathe();
-  const runClip = bake(clip("run"));
+  const runClip = await bake(clip("run"));
   await breathe();
-  const idleClip = bake(clip("idle"));
+  const idleClip = await bake(clip("idle"));
 
   /* turn a joint by a rotation given in world space, whatever the rig's local axes are */
   const qa = new Quaternion();

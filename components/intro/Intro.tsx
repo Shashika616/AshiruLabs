@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { finishIntro, introActive, releaseScroll } from "@/lib/intro";
+import { finishIntro, finishSplash, introActive, releaseScroll } from "@/lib/intro";
 
 /**
  * The landing before the site: a Magic Keyboard in the site's anime-glass style, and a real
@@ -370,8 +370,9 @@ export default function Intro() {
       if (!splashing) return;
       splashing = false;
       el.classList.add("is-ready");
+      finishSplash();
     };
-    const splashTimer = window.setTimeout(endSplash, still ? 600 : 2050);
+    const splashTimer = window.setTimeout(endSplash, still ? 600 : 2350);
     const skipSplash = () => {
       if (!splashing) return false;
       window.clearTimeout(splashTimer);

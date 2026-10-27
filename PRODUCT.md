@@ -12,10 +12,10 @@ Next.js (user-specified). Real-time 3D hero via Three.js (user-confirmed). Must 
 
 ## What it is
 
-AshiruLabs is a software product company based in Sri Lanka. It does two things:
+AshiruLabs is a software product company based in Sri Lanka, and the parent company of its products. It does two things:
 
-1. **Ships its own products.** The flagship is **TieHere**: a proximity app for professionals to meet in person, around a specific intent (coffee, meal, networking, mentorship, outing, ride share, dating). Nobody on it is anonymous; accounts climb a four-level trust ladder (real account → identity checked → workplace checked) and safety features (SOS, trusted contacts, per-participant safety gate, quantised coordinates) switch on as trust is earned. Domain: tiehere.com. Brand pair: blue `#0075F6`, green `#34C24C`.
-2. **Builds custom software for clients.** The same product discipline that ships TieHere, applied to client work.
+1. **Ships its own products.** The flagship is **TieHere**: a proximity app for professionals to meet in person, around a specific intent (coffee, meal, networking, mentorship, outing, ride share, dating). Nobody on it is anonymous; accounts climb a four-level trust ladder (real account → identity checked → workplace checked) and safety features (SOS, trusted contacts, per-participant safety gate, quantised coordinates) switch on as trust is earned. Domain: tiehere.com. Brand pair: blue `#0075F6`, green `#34C24C`. **TieHere is a product with its own dedicated team; AshiruLabs is the company behind it.**
+2. **Builds custom software for clients.** The same product discipline AshiruLabs applies to its own products, applied to client work.
 
 ## Audience
 
@@ -25,13 +25,14 @@ AshiruLabs is a software product company based in Sri Lanka. It does two things:
 
 ## Positioning
 
-A product company that builds client work the way it builds its own products, rather than an agency that has never shipped and maintained one. TieHere is the proof.
+A product company that builds client work the way it builds its own products, rather than an agency that has never shipped and maintained one. TieHere is the proof that AshiruLabs ships products.
 
 ## Constraints and truth
 
 - No invented clients, testimonials, metrics, team sizes or awards. Unknown facts are placeholders in one config file, never claims.
 - TieHere copy follows its own rule: "verified" describes credentials, never people.
-- Contact email and social links: not yet supplied (inferred placeholder, flagged).
+- Never say or imply that TieHere's team builds client work. TieHere is one AshiruLabs product with its own team; client work is done by AshiruLabs.
+- Contact email: info@ashirulabs.com (confirmed). Social links: not yet supplied.
 - TieHere store status: not confirmed; link to tiehere.com.
 
 ## Accessibility

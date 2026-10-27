@@ -5,6 +5,25 @@
  */
 const DONE = "al:intro-done";
 const SCROLL = "al:scroll-ready";
+const SPLASH = "al:splash-done";
+let splashDone = false;
+
+/** The splash has handed over to the keyboard: heavy loading may start without hurting it. */
+export function finishSplash() {
+  splashDone = true;
+  window.dispatchEvent(new Event(SPLASH));
+}
+
+/** Runs `fn` once the splash is over: now, if there is no intro or it already ended. */
+export function whenSplashDone(fn: () => void) {
+  if (splashDone || !introActive()) {
+    fn();
+    return () => {};
+  }
+  const once = () => fn();
+  window.addEventListener(SPLASH, once, { once: true });
+  return () => window.removeEventListener(SPLASH, once);
+}
 
 export function introActive() {
   return typeof document !== "undefined" && document.documentElement.classList.contains("intro-active");

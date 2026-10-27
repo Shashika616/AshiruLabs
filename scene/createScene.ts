@@ -27,6 +27,8 @@ import {
   MathUtils,
   Matrix4,
   Mesh,
+  ImageBitmapLoader,
+  LinearMipmapLinearFilter,
   MeshBasicMaterial,
   PerspectiveCamera,
   PlaneGeometry,
@@ -38,7 +40,9 @@ import {
   Sprite,
   SpriteMaterial,
   SRGBColorSpace,
-  Vector2,
+  NoColorSpace,
+  Texture,
+  TextureLoader,
   Vector3,
   WebGLRenderer,
   ACESFilmicToneMapping,
@@ -127,6 +131,7 @@ const GLASS_FRAG = /* glsl */ `
   uniform vec3 uColor;
   uniform vec3 uSide;
   uniform vec3 uLight;
+  uniform float uShine;
   uniform float uFog;
   varying vec3 vP;
   varying vec3 vH;
@@ -163,6 +168,11 @@ const GLASS_FRAG = /* glsl */ `
     float lit = 0.55 + 0.8 * (1.0 - smoothstep(1.5, 2.4, distance(vW, uLight)));
     float fog = exp(-pow(uFog * distance(vW, cameraPosition), 2.0));
     vec3 rgb = (tone + vec3(0.88, 0.92, 0.95) * streak + vec3(0.93, 0.95, 0.96) * line) * lit * fog;
+    // The shine: a band of light running up the stair, as light catches a cut stone. Edges
+    // flare, the tops take a raking sheen. Off (uShine far below the stair) between sweeps.
+    float band = exp(-pow((vW.y - uShine) / 0.6, 2.0));
+    float rake = 0.5 + 0.5 * sin((vW.x + vW.z) * 7.0 - vW.y * 5.0);
+    rgb += vec3(0.95, 0.97, 1.0) * band * (line * 1.7 + top * (0.2 + 0.35 * rake) + side * 0.08) * fog;
     float a = max(rgb.r, max(rgb.g, rgb.b));
     gl_FragColor = vec4(rgb, a);
   }
@@ -176,14 +186,18 @@ const GLINT_VERT = /* glsl */ `
   uniform float uTime;
   uniform float uPR;
   uniform float uFog;
+  uniform float uShine;
   varying float vA;
   void main() {
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     gl_Position = projectionMatrix * mv;
-    float tw = 0.15 + 0.85 * pow(0.5 + 0.5 * sin(uTime * (0.35 + aPhase * 0.5) + aPhase * 6.2831), 6.0);
+    float flare = exp(-pow((position.y - uShine) / 0.5, 2.0));
+    // A slow shimmer, never a hard blink: a full flash read as flicker.
+    float tw = 0.3 + 0.7 * pow(0.5 + 0.5 * sin(uTime * (0.22 + aPhase * 0.3) + aPhase * 6.2831), 3.0);
     float d = -mv.z;
+    tw = max(tw, flare);
     vA = tw * exp(-pow(uFog * d, 2.0));
-    gl_PointSize = aSize * uPR * (0.25 + tw) * (26.0 / d);
+    gl_PointSize = aSize * uPR * (0.25 + tw + flare * 0.8) * (26.0 / d);
   }
 `;
 const GLINT_FRAG = /* glsl */ `
@@ -289,7 +303,8 @@ const SIGN_VERT = /* glsl */ `
   }
 `;
 
-function signTexture(text: string) {
+/** The sign's layout: cheap text measuring, needed up front to size the sign. */
+function signMetrics(text: string) {
   const family = getComputedStyle(document.documentElement).getPropertyValue("--font-display").trim() || "sans-serif";
   const px = 150;
   const pad = px * 0.4;
@@ -302,6 +317,12 @@ function signTexture(text: string) {
   const edges = [0];
   for (let i = 1; i < text.length; i++) edges.push((pad + m.measureText(text.slice(0, i)).width) / width);
   edges.push(1);
+  return { px, pad, font, width, height, edges, count: text.length, aspect: width / height };
+}
+
+/** The sign's glyphs and glow: the heavy part (three canvases and a large blur), built in idle time. */
+function signTexture(text: string) {
+  const { px, pad, font, width, height } = signMetrics(text);
   const layer = (paint: (g: CanvasRenderingContext2D) => void, blur = 0) => {
     const c = document.createElement("canvas");
     c.width = width;
@@ -349,8 +370,61 @@ function signTexture(text: string) {
   tint(tube, "rgb(0,0,255)");
   const tex = new CanvasTexture(out);
   tex.anisotropy = 4;
-  return { tex, edges, count: text.length, aspect: width / height };
+  return tex;
 }
+
+/* ---------------------------------------------------------------- backdrop
+   Real photographs behind the climb, one per section, kept in the background where they
+   belong: greyscale sources mapped onto the site's own navy-to-steel palette, softened, held
+   at low strength under a vignette, drifting slowly and dissolving into the next as the
+   figure climbs between sections. Drawn as one full-screen quad before anything else. */
+
+const BACKDROP_VERT = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position.xy, 0.9999, 1.0);
+  }
+`;
+const BACKDROP_FRAG = /* glsl */ `
+  uniform sampler2D uA;
+  uniform sampler2D uB;
+  uniform float uMix;
+  uniform float uAspect;
+  uniform float uTime;
+  uniform float uDrift;
+  uniform float uStrength;
+  uniform vec3 uBg;
+  uniform vec3 uLow;
+  uniform vec3 uHigh;
+  varying vec2 vUv;
+  vec2 cover(vec2 uv, float zoom, vec2 shift) {
+    float img = 16.0 / 9.0;
+    vec2 sc = uAspect > img ? vec2(1.0, img / uAspect) : vec2(uAspect / img, 1.0);
+    return (uv - 0.5) * sc / zoom + 0.5 + shift;
+  }
+  void main() {
+    // A slow push-in and a parallax drift with the climb; the incoming image arrives a little
+    // larger, so the dissolve reads as a move rather than a cut.
+    float z = 1.12 + 0.025 * sin(uTime * 0.045);
+    vec2 a = cover(vUv, z, vec2(0.0, uDrift * 0.06));
+    vec2 b = cover(vUv, z + 0.06 * (1.0 - uMix), vec2(0.0, (uDrift - 1.0) * 0.06));
+    float lum = mix(texture2D(uA, a).r, texture2D(uB, b).r, smoothstep(0.0, 1.0, uMix));
+    vec3 tone = mix(uLow, uHigh, smoothstep(0.12, 0.95, lum));
+    vec2 q = (vUv - 0.5) * vec2(uAspect, 1.0);
+    float vignette = 1.0 - smoothstep(0.25, 0.95, length(q) / max(uAspect, 1.0) * 1.35);
+    gl_FragColor = vec4(mix(uBg, tone, uStrength * (0.35 + 0.65 * vignette)), 1.0);
+    #include <colorspace_fragment>
+  }
+`;
+/** The shine that runs up the stair: how often, how long, and from where to where (metres). */
+const SHINE_EVERY = 12;
+const SHINE_FOR = 6;
+const SHINE_FROM = -2.5;
+const SHINE_TO = 11.5;
+
+const BACKDROP_STRENGTH = 0.3;
+const BACKDROPS = ["home", "studio", "tiehere", "services", "process", "contact"];
 
 /* ---------------------------------------------------------------- scene */
 
@@ -378,6 +452,33 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
 
   const scene = new Scene();
   scene.fog = new FogExp2(BG, FOG);
+
+  const blank = new Texture();
+  const backdropMat = new ShaderMaterial({
+    vertexShader: BACKDROP_VERT,
+    fragmentShader: BACKDROP_FRAG,
+    uniforms: {
+      uA: { value: blank },
+      uB: { value: blank },
+      uMix: { value: 0 },
+      uAspect: { value: 1 },
+      uTime: { value: 0 },
+      uDrift: { value: 0 },
+      uStrength: { value: 0 },
+      uBg: { value: new Color(BG) },
+      uLow: { value: new Color(0x0d1b2a) },
+      uHigh: { value: new Color(0x415a77) },
+    },
+    depthTest: false,
+    depthWrite: false,
+    fog: false,
+  });
+  const backdrop = new Mesh(new PlaneGeometry(2, 2), backdropMat);
+  backdrop.frustumCulled = false;
+  backdrop.renderOrder = -1000;
+  scene.add(backdrop);
+  const backdropTex: (Texture | null)[] = BACKDROPS.map(() => null);
+  let backdropLoaded = 0;
   const camera = new PerspectiveCamera(34, 1, 0.1, 80);
 
   scene.add(new HemisphereLight(0x778da9, 0x0d1b2a, 0.4));
@@ -400,6 +501,7 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
       uColor: { value: GLASS.clone() },
       uSide: { value: new Color(0x415a77) },
       uLight: { value: new Vector3() },
+      uShine: { value: -100 },
       uFog: { value: FOG },
     },
     transparent: true,
@@ -408,7 +510,15 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
     blending: AdditiveBlending,
   });
   const treads = new InstancedMesh(unit, glass, list.length);
-  const noseMat = new MeshBasicMaterial({ color: NOSE, toneMapped: false });
+  // Additive and depth-free: as solid geometry these strips fought the glass edges they sit
+  // on for depth, and shimmered as the camera moved.
+  const noseMat = new MeshBasicMaterial({
+    color: NOSE,
+    toneMapped: false,
+    transparent: true,
+    blending: AdditiveBlending,
+    depthWrite: false,
+  });
   const noses = new InstancedMesh(unit, noseMat, list.length * 2);
   const glowTex = radial();
   const underMat = new MeshBasicMaterial({
@@ -448,7 +558,7 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
       glintPos.push(nx, top + 0.005, b.cz + (side * b.sz) / 2);
       glintPhase.push(rand());
       // Mostly pin-points, with the occasional full starburst like light caught on a cut edge.
-      glintSize.push(rand() < 0.16 || !b.tread ? 22 + rand() * 14 : 3 + rand() * 4);
+      glintSize.push(rand() < 0.16 || !b.tread ? 15 + rand() * 9 : 3 + rand() * 3);
     }
   });
   treads.instanceMatrix.needsUpdate = true;
@@ -512,7 +622,7 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
   scene.add(portal);
 
   /* "AshiruLabs" in lit letters over the door, dark until the climber reaches the summit */
-  const word = signTexture("AshiruLabs");
+  const word = signMetrics("AshiruLabs");
   const signW = 2.3;
   const signH = signW / word.aspect;
   const edges = new Array(MAX_LETTERS + 1).fill(1);
@@ -521,7 +631,7 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
     vertexShader: SIGN_VERT,
     fragmentShader: SIGN_FRAG,
     uniforms: {
-      uMap: { value: word.tex },
+      uMap: { value: blank },
       uTime: { value: 0 },
       uReveal: { value: 0 },
       uEdges: { value: edges },
@@ -551,8 +661,22 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
   );
   sign.add(new LineSegments(railGeo, new LineBasicMaterial({ color: 0x415a77, toneMapped: false })));
   portal.add(sign);
+  // The summit is the last thing anyone reaches: paint its letters when the page is idle.
+  let signTex: Texture | null = null;
+  const idle = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+  const paintSign = () => {
+    if (disposed) return;
+    signTex = signTexture("AshiruLabs");
+    ledMat.uniforms.uMap.value = signTex;
+    renderer.initTexture(signTex);
+  };
+  if (idle) idle(paintSign, { timeout: 4000 });
+  else setTimeout(paintSign, 1500);
+  // The sign boots up the first time the door comes into view, then stays lit.
   let reveal = 0;
-  const summitFrom = STATIONS[STATIONS.length - 1][0] - 0.6;
+  let signOn = false;
+  const signAt = new Vector3();
+  const signNdc = new Vector3();
 
   const portalLight = new PointLight(0xedf2f4, 7, 6, 2);
   portalLight.position.set(portalAt.x, portalAt.y + 1.2, portalAt.z + 0.4);
@@ -566,7 +690,13 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
   const glintMat = new ShaderMaterial({
     vertexShader: GLINT_VERT,
     fragmentShader: GLINT_FRAG,
-    uniforms: { uTime: { value: 0 }, uPR: { value: dpr }, uFog: { value: FOG }, uColor: { value: GLINT.clone() } },
+    uniforms: {
+      uTime: { value: 0 },
+      uPR: { value: dpr },
+      uFog: { value: FOG },
+      uColor: { value: GLINT.clone() },
+      uShine: { value: -100 },
+    },
     transparent: true,
     depthWrite: false,
     blending: AdditiveBlending,
@@ -631,12 +761,19 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
   let first = true;
   const accentCol = new Color();
   const tieMid = (STATIONS[TIEHERE_STATION][0] + STATIONS[TIEHERE_STATION][1]) / 2;
-  const size = new Vector2();
   let slowFrames = 0;
+  let steps = 0;
   let sampled = 0;
 
+  let lastW = 0;
+  let lastH = 0;
   function resize(w: number, h: number) {
+    // Resizing reallocates the drawing buffer and blanks it for a frame: only when needed.
+    if (w === lastW && h === lastH) return;
+    lastW = w;
+    lastH = h;
     aspect = w / Math.max(h, 1);
+    backdropMat.uniforms.uAspect.value = aspect;
     camera.fov = aspect < 0.8 ? 46 : aspect < 1.2 ? 40 : 34;
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
@@ -669,6 +806,27 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
     return renderer.compileAsync(scene, camera).then(done, done);
   }
   warm();
+
+  function loadBackdrops() {
+    const bitmap = typeof createImageBitmap !== "undefined";
+    const loader = bitmap ? new ImageBitmapLoader().setOptions({ imageOrientation: "flipY" }) : new TextureLoader();
+    BACKDROPS.forEach((name, i) => {
+      const onLoad = (data: ImageBitmap | Texture) => {
+        if (disposed) return;
+        const tex = data instanceof Texture ? data : new Texture(data);
+        if (!(data instanceof Texture)) tex.flipY = false;
+        tex.colorSpace = NoColorSpace;
+        tex.minFilter = LinearMipmapLinearFilter;
+        tex.anisotropy = 4;
+        tex.needsUpdate = true;
+        renderer.initTexture(tex);
+        backdropTex[i] = tex;
+        backdropLoaded++;
+      };
+      (loader as ImageBitmapLoader).load(`/bg/${name}.jpg`, onLoad as (d: ImageBitmap) => void, undefined, () => {});
+    });
+  }
+  loadBackdrops();
 
   function frame(f: FrameInput) {
     const p = pose(f.u);
@@ -772,30 +930,67 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
     }
 
     glintMat.uniforms.uTime.value = f.time;
-    if (f.u >= summitFrom || f.still) reveal = Math.min(1, reveal + (f.still ? 1 : f.dt / 1.5));
+    // One sweep up the whole stair every SHINE_EVERY seconds, eased in and out.
+    const sc = (f.time % SHINE_EVERY) / SHINE_FOR;
+    const shineY = f.still || sc >= 1 ? -100 : SHINE_FROM + (SHINE_TO - SHINE_FROM) * (sc * sc * (3 - 2 * sc));
+    glass.uniforms.uShine.value = shineY;
+    glintMat.uniforms.uShine.value = shineY;
+    if (!signOn && f.intro >= 1) {
+      sign.getWorldPosition(signAt);
+      signNdc.copy(signAt).project(camera);
+      const fogged = Math.exp(-((FOG * signAt.distanceTo(camera.position)) ** 2));
+      signOn = signNdc.z < 1 && Math.abs(signNdc.x) < 1.05 && Math.abs(signNdc.y) < 1.05 && fogged > 0.25;
+    }
+    if (signOn || f.still) reveal = Math.min(1, reveal + (f.still ? 1 : f.dt / 1.5));
     ledMat.uniforms.uReveal.value = reveal;
     ledMat.uniforms.uTime.value = f.time;
     dustMat.uniforms.uTime.value = f.time;
 
-    renderer.render(scene, camera);
+    /* backdrop: which section's photograph, and how far into the dissolve to the next */
+    let bp = 0;
+    for (let i = 0; i < STATIONS.length; i++) {
+      const [a0, a1] = STATIONS[i];
+      const next = STATIONS[i + 1];
+      if (f.u <= a1) {
+        bp = i;
+        break;
+      }
+      if (next && f.u < next[0]) {
+        const t = (f.u - a1) / (next[0] - a1);
+        bp = i + t * t * (3 - 2 * t);
+        break;
+      }
+      bp = i;
+    }
+    const bi = Math.min(Math.floor(bp), BACKDROPS.length - 1);
+    const bu = backdropMat.uniforms;
+    bu.uA.value = backdropTex[bi] ?? blank;
+    bu.uB.value = backdropTex[Math.min(bi + 1, BACKDROPS.length - 1)] ?? blank;
+    bu.uMix.value = bp - bi;
+    bu.uDrift.value = bp - bi;
+    bu.uTime.value = f.time;
+    if (backdropLoaded === BACKDROPS.length) bu.uStrength.value = Math.min(BACKDROP_STRENGTH, bu.uStrength.value + f.dt * 0.25);
 
-    /* adaptive resolution: step down if the device cannot hold the frame rate */
-    if (f.intro >= 1 && !f.still && dpr > 1) {
+    /* adaptive resolution, decided before drawing so a resize never shows a blank frame;
+       at most two steps, and never while the opening is still settling */
+    if (f.intro >= 1 && !f.still && dpr > 1 && steps < 2) {
       sampled++;
-      if (f.dt > 0.024) slowFrames++;
-      if (sampled >= 90) {
-        if (slowFrames > 45) {
-          dpr = Math.max(1, dpr - 0.25);
+      if (f.dt > 0.026) slowFrames++;
+      if (sampled >= 120) {
+        if (slowFrames > 70) {
+          steps++;
+          dpr = Math.max(1, dpr - 0.3);
           renderer.setPixelRatio(dpr);
           glintMat.uniforms.uPR.value = dpr;
           dustMat.uniforms.uPR.value = dpr;
-          renderer.getSize(size);
-          renderer.setSize(size.x, size.y, false);
+          renderer.setSize(lastW, lastH, false);
         }
         sampled = 0;
         slowFrames = 0;
       }
     }
+
+    renderer.render(scene, camera);
   }
 
   function dispose() {
@@ -810,7 +1005,9 @@ export function createScene(canvas: HTMLCanvasElement, tier: Tier, models: Model
     });
     glowTex.dispose();
     doorTex.dispose();
-    word.tex.dispose();
+    signTex?.dispose();
+    backdropTex.forEach((t) => t?.dispose());
+    blank.dispose();
     renderer.dispose();
   }
 

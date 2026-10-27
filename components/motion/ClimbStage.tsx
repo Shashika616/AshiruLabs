@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { pose, STATIONS, TOTAL_U } from "@/lib/stairs";
 import { STATION_NAMES } from "@/content/site";
 import type { SceneHandle, Tier } from "@/scene/createScene";
-import { introActive, whenSiteOpen } from "@/lib/intro";
+import { introActive, whenSiteOpen, whenSplashDone } from "@/lib/intro";
 import { reportProgress, reportReady } from "@/lib/loading";
 
 /**
@@ -52,14 +52,21 @@ function measure(): Key[] {
     const i = Number(el.dataset.station);
     const side = Number(el.dataset.side ?? 0);
     const [u0, u1] = STATIONS[i] ?? [TOTAL_U, TOTAL_U];
-    const top = el.getBoundingClientRect().top + window.scrollY;
+    // The summit is sticky: while pinned its live position is wrong, so read where it sits in
+    // the flow from the travel spacer that follows it.
+    const after = el.nextElementSibling as HTMLElement | null;
+    const pinned = getComputedStyle(el).position === "sticky" && after;
+    const top = pinned
+      ? after.getBoundingClientRect().top + window.scrollY - el.offsetHeight
+      : el.getBoundingClientRect().top + window.scrollY;
     if (i === 0) {
       keys.push({ y: 0, u: 0, side }, { y: vh * 0.12, u: 0, side });
       continue;
     }
     const last = i === STATIONS.length - 1;
     const a = Math.min(max, Math.max(0, top - vh * 0.55));
-    const b = last ? max : Math.min(max, top + el.offsetHeight - vh * 0.6);
+    // The last landing is reached as the summit pins, before the footer rises over it.
+    const b = last ? Math.min(max, top + vh * 0.05) : Math.min(max, top + el.offsetHeight - vh * 0.6);
     keys.push({ y: a, u: u0, side }, { y: Math.max(a + 1, b), u: u1, side });
   }
   keys.sort((p, q) => p.y - q.y);
@@ -112,10 +119,6 @@ function webglAvailable() {
 
 export default function ClimbStage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const elevRef = useRef<HTMLSpanElement>(null);
-  const nameRef = useRef<HTMLSpanElement>(null);
-  const needleRef = useRef<HTMLDivElement>(null);
-  const trendRef = useRef<HTMLSpanElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
   const mobileRef = useRef<HTMLSpanElement>(null);
 
@@ -135,7 +138,6 @@ export default function ClimbStage() {
     let frameSkip = 0;
     let shownElev = "";
     let shownStation = -1;
-    let shownTrend = 0;
     let vel = 0;
 
     const topY = pose(TOTAL_U).pos.y;
@@ -151,22 +153,15 @@ export default function ClimbStage() {
     };
     window.addEventListener("pointermove", onPointer, { passive: true });
 
-    const writeHud = (station: number, elev: number, trend: number) => {
-      const e = elev.toFixed(2).padStart(5, "0");
+    const writeHud = (station: number, elev: number) => {
+      const e = elev.toFixed(2);
       if (e !== shownElev) {
         shownElev = e;
-        if (elevRef.current) elevRef.current.textContent = e;
-        if (needleRef.current) needleRef.current.style.transform = `translate3d(0, ${(-elev / topY) * 100}%, 0)`;
         if (railRef.current) railRef.current.style.transform = `scaleY(${Math.max(0.02, elev / topY)})`;
       }
       if (station !== shownStation) {
         shownStation = station;
-        if (nameRef.current) nameRef.current.textContent = STATION_NAMES[station];
         if (mobileRef.current) mobileRef.current.textContent = STATION_NAMES[station];
-      }
-      if (trend !== shownTrend) {
-        shownTrend = trend;
-        if (trendRef.current) trendRef.current.dataset.trend = trend > 0 ? "up" : trend < 0 ? "down" : "hold";
       }
     };
 
@@ -202,7 +197,7 @@ export default function ClimbStage() {
       if (Math.abs(target.u - u) > 0.002 || Math.abs(vel) > 0.01) lastScroll = now;
 
       const p = pose(u);
-      writeHud(nearestStation(u), p.pos.y, Math.abs(vel) < 0.08 ? 0 : Math.sign(vel));
+      writeHud(nearestStation(u), p.pos.y);
 
       // Nothing to draw yet, or the intro is covering the stage: spend nothing on it.
       if (!scene || covered) return;
@@ -224,12 +219,15 @@ export default function ClimbStage() {
       });
     };
 
+    // The canvas is sized in CSS to the large viewport, so a phone's address bar sliding in and
+    // out never resizes (and blanks) it; only a real change to the canvas box does.
+    const fit = () => scene?.resize(canvas.clientWidth, canvas.clientHeight);
     const onResize = () => {
       keys = measure();
-      scene?.resize(window.innerWidth, window.innerHeight);
+      fit();
     };
-    const ro = new ResizeObserver(onResize);
-    ro.observe(document.body);
+    const ro = new ResizeObserver(fit);
+    ro.observe(canvas);
     window.addEventListener("resize", onResize, { passive: true });
     document.fonts?.ready.then(onResize).catch(() => {});
 
@@ -252,40 +250,66 @@ export default function ClimbStage() {
       lastScroll = introStart;
     });
 
+    type Create = typeof import("@/scene/createScene").createScene;
+    const start = (createScene: Create) => {
+      if (!alive) return;
+      reportProgress(0.22);
+      scene = createScene(
+        canvas,
+        pickTier(),
+        { body: "/models/human.glb", motion: "/models/motion.glb" },
+        { onProgress: (p) => reportProgress(0.22 + 0.76 * p), onReady: reportReady },
+      );
+      scene.resize(canvas.clientWidth, canvas.clientHeight);
+      if (!covered) introStart = performance.now();
+      lastScroll = performance.now();
+      canvas.dataset.live = "true";
+    };
+    let create: Create | null = null;
+    // A phone can take the GPU context away under memory pressure. Ask for it back and rebuild,
+    // rather than leaving the stage blank.
+    const onLost = (e: Event) => {
+      e.preventDefault();
+      scene = null;
+      canvas.dataset.live = "false";
+    };
+    const onRestored = () => {
+      if (create) start(create);
+    };
+    canvas.addEventListener("webglcontextlost", onLost);
+    canvas.addEventListener("webglcontextrestored", onRestored);
+
     const boot = () => {
       if (!alive) return;
       if (!webglAvailable()) return reportReady();
       reportProgress(0.06);
       // The summit sign is drawn in the display face, so let the fonts land first.
       Promise.all([import("@/scene/createScene"), document.fonts?.ready.catch(() => {})])
-        .then(([mod]) => mod)
-        .then(({ createScene }) => {
-          if (!alive) return;
-          reportProgress(0.22);
-          scene = createScene(
-            canvas,
-            pickTier(),
-            { body: "/models/human.glb", motion: "/models/motion.glb" },
-            { onProgress: (p) => reportProgress(0.22 + 0.76 * p), onReady: reportReady },
-          );
-          scene.resize(window.innerWidth, window.innerHeight);
-          if (!covered) introStart = performance.now();
-          lastScroll = performance.now();
-          canvas.dataset.live = "true";
-          canvas.addEventListener("webglcontextlost", () => {
-            scene = null;
-            canvas.dataset.live = "false";
-          });
+        .then(([mod]) => {
+          create = mod.createScene;
+          start(mod.createScene);
         })
         .catch(() => reportReady());
     };
+    // Parsing three.js and building the scene is the heaviest work on the page: hold it until
+    // the splash has played, so its animation never competes with it on a phone.
     const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
-    if (w.requestIdleCallback) w.requestIdleCallback(boot, { timeout: 900 });
-    else setTimeout(boot, 120);
+    let bootTimer = 0;
+    const stopSplashWait = whenSplashDone(() => {
+      // ...and until the keyboard has finished building in.
+      bootTimer = window.setTimeout(
+        () => (w.requestIdleCallback ? w.requestIdleCallback(boot, { timeout: 600 }) : boot()),
+        introActive() ? 1100 : 0,
+      );
+    });
 
     return () => {
       alive = false;
       stopWaiting();
+      stopSplashWait();
+      window.clearTimeout(bootTimer);
+      canvas.removeEventListener("webglcontextlost", onLost);
+      canvas.removeEventListener("webglcontextrestored", onRestored);
       cancelAnimationFrame(raf);
       ro.disconnect();
       window.removeEventListener("resize", onResize);
@@ -307,26 +331,6 @@ export default function ClimbStage() {
         <div ref={railRef} className="rail-fill" />
       </div>
 
-      <aside className="gauge" aria-hidden="true">
-        <div className="gauge-read">
-          <span className="gauge-label">ELEV</span>
-          <span className="gauge-value">
-            <span ref={elevRef}>00.00</span>
-            <span className="gauge-unit">m</span>
-          </span>
-          <span ref={trendRef} className="gauge-trend" data-trend="hold">
-            <svg viewBox="0 0 10 10" aria-hidden="true">
-              <path d="M5 1.5 L8.5 7.5 H1.5 Z" />
-            </svg>
-          </span>
-        </div>
-        <div className="gauge-scale">
-          <div ref={needleRef} className="gauge-needle" />
-        </div>
-        <div className="gauge-station">
-          <span ref={nameRef}>{STATION_NAMES[0]}</span>
-        </div>
-      </aside>
 
       <div className="gauge-mobile" aria-hidden="true">
         <span ref={mobileRef}>{STATION_NAMES[0]}</span>
