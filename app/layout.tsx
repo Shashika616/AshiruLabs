@@ -37,13 +37,20 @@ const jsonLd = {
   owns: { "@type": "SoftwareApplication", name: "TieHere", url: TIEHERE.url },
 };
 
-/* The keyboard intro (components/intro) is switched off for now. To bring it back, render
-   <Intro /> in app/page.tsx and add this to <head> so it shows before first paint:
-   <script>history.scrollRestoration="manual";scrollTo(0,0);document.documentElement.classList.add("intro-active")</script> */
+/**
+ * Every load opens on the AshiruLabs splash. Set before first paint so the site never flashes
+ * underneath, and scroll is reset so a refresh starts at the foot of the climb. Without scripts
+ * the class is never set and the splash stays hidden. (The keyboard intro in
+ * components/intro/Intro.tsx is switched off; render it in place of <Splash /> to bring it back.)
+ */
+const INTRO_GATE = `(function(){try{history.scrollRestoration="manual"}catch(e){}window.scrollTo(0,0);document.documentElement.classList.add("intro-active")})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: INTRO_GATE }} />
+      </head>
       <body>
         {children}
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />

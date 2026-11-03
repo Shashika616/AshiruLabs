@@ -2633,3 +2633,21 @@ html.has-cursor.cursor-out .cursor-ring {
 .cursor-ring[data-state="link"][data-down]::before {
   transform: scale(1.3);
 }
+
+/* The splash on its own: the curtain lifts straight onto the site, so the wrapper is clear. */
+.intro.intro-splash {
+  background: transparent;
+  touch-action: auto;
+}
+.intro.intro-splash.is-ready {
+  pointer-events: none;
+}
+.intro.intro-splash.is-ready .splash {
+  /* A slide on the compositor: it stays smooth while the 3D scene loads underneath. */
+  animation: splash-lift 0.75s cubic-bezier(0.7, 0, 0.2, 1) forwards;
+}
+@keyframes splash-lift {
+  to {
+    transform: translate3d(0, -100%, 0);
+  }
+}

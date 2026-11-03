@@ -3,6 +3,7 @@ import StageSkeleton from "@/components/motion/StageSkeleton";
 import Reveal from "@/components/motion/Reveal";
 import SmoothScroll from "@/components/motion/SmoothScroll";
 import Cursor from "@/components/ui/Cursor";
+import Splash from "@/components/intro/Splash";
 import Footer from "@/components/ui/Footer";
 import Header from "@/components/ui/Header";
 import { TieHereMark } from "@/components/ui/Marks";
@@ -35,6 +36,7 @@ export default function Home() {
       <a href="#studio" className="skip">
         Skip to content
       </a>
+      <Splash />
       <ClimbStage />
       <StageSkeleton />
       <Header />
