@@ -1,6 +1,5 @@
 import ClimbStage from "@/components/motion/ClimbStage";
 import StageSkeleton from "@/components/motion/StageSkeleton";
-import Intro from "@/components/intro/Intro";
 import Reveal from "@/components/motion/Reveal";
 import SmoothScroll from "@/components/motion/SmoothScroll";
 import Cursor from "@/components/ui/Cursor";
@@ -36,7 +35,6 @@ export default function Home() {
       <a href="#studio" className="skip">
         Skip to content
       </a>
-      <Intro />
       <ClimbStage />
       <StageSkeleton />
       <Header />

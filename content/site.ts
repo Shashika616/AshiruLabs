@@ -42,8 +42,7 @@ export const DISCIPLINES = [
 ];
 
 export const TIEHERE = {
-  /** Temporary: the TieHere site's preview deployment, until tiehere.com is live. */
-  url: "https://tiehere-web.vercel.app",
+  url: "https://tiehere.com",
   line: "Connect with who's here.",
   body: "Professionals near you, meeting in person, around something specific. Nobody here is anonymous. TieHere is not another feed. It is a small number of real meetings you actually show up to.",
   intents: ["Coffee", "Meal", "Networking", "Mentorship", "Outing", "Ride share", "Dating"],

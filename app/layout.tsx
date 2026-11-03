@@ -37,19 +37,13 @@ const jsonLd = {
   owns: { "@type": "SoftwareApplication", name: "TieHere", url: TIEHERE.url },
 };
 
-/**
- * Every load opens on the keyboard intro. Set before first paint so the site never flashes
- * underneath, and scroll is reset so a refresh always starts at the foot of the climb.
- * Without scripts the class is never set and the intro stays hidden.
- */
-const INTRO_GATE = `(function(){try{history.scrollRestoration="manual"}catch(e){}window.scrollTo(0,0);document.documentElement.classList.add("intro-active")})();`;
+/* The keyboard intro (components/intro) is switched off for now. To bring it back, render
+   <Intro /> in app/page.tsx and add this to <head> so it shows before first paint:
+   <script>history.scrollRestoration="manual";scrollTo(0,0);document.documentElement.classList.add("intro-active")</script> */
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`} suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: INTRO_GATE }} />
-      </head>
       <body>
         {children}
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
